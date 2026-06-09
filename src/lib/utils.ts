@@ -11,6 +11,10 @@ export function formatCurrency(n: number): string {
   }).format(n);
 }
 
+/**
+ * Formats a whole-number percent value (e.g. 25 → "25,0 %").
+ * Pass value in percent units (25), NOT as a decimal ratio (0.25).
+ */
 export function formatPercent(n: number, decimals = 1): string {
   return new Intl.NumberFormat('cs-CZ', {
     style: 'percent',
@@ -25,11 +29,12 @@ export function calcPno(cost: number, conversionValue: number): number {
 }
 
 export function pctChange(current: number, previous: number): number {
+  // Returns 0 for zero-baseline periods (no prior data) — callers render as "–"
   if (previous === 0) return 0;
   return ((current - previous) / previous) * 100;
 }
 
-type MetricKey = 'visits' | 'conversions' | 'conversion_value' | 'cost' | 'pno';
+export type MetricKey = 'visits' | 'conversions' | 'conversion_value' | 'cost' | 'pno';
 
 export function trendIsGood(metric: MetricKey, change: number): boolean {
   const lowerIsBetter = new Set<MetricKey>(['cost', 'pno']);
