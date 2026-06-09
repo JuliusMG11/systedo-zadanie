@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { question?: unknown; range?: unknown };
+    const body = await req.json() as { question?: unknown };
 
     if (typeof body.question !== 'string' || body.question.trim().length === 0) {
       return NextResponse.json({ error: 'Neplatný dotaz' }, { status: 400 });
