@@ -60,19 +60,8 @@ async function AiInsightLoader({ clientId }: { clientId: number }) {
 
 async function getAiInsight(clientId: number): Promise<string> {
   try {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-    const res = await fetch(`${base}/api/analyst`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientId,
-        question: 'Shrň hlavní marketingový problém klienta jednou větou.',
-      }),
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return 'Analytik momentálně není dostupný.';
-    const data = await res.json() as { answer?: string };
-    return data.answer ?? 'Analytik momentálně není dostupný.';
+    const { askAnalyst } = await import('@/lib/ai/analyst');
+    return await askAnalyst('Shrň hlavní marketingový problém klienta jednou větou.', clientId);
   } catch {
     return 'Analytik momentálně není dostupný.';
   }

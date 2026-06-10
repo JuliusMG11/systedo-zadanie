@@ -1,12 +1,7 @@
-// src/app/api/analyst/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getAnalystContext } from '@/lib/queries';
-import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/ai/prompt';
+import { askAnalyst } from '@/lib/ai/analyst';
 
 export const runtime = 'nodejs';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,21 +16,10 @@ export async function POST(req: NextRequest) {
 
     const clientId =
       typeof body.clientId === 'number' && Number.isInteger(body.clientId) && body.clientId > 0
-        ? body.clientId
-        : 1;
+        ? body.clientId : 1;
 
-    const snapshot = await getAnalystContext(clientId);
-
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: SYSTEM_PROMPT,
-    });
-
-    const result = await model.generateContent(
-      buildUserPrompt(body.question.trim(), snapshot)
-    );
-
-    return NextResponse.json({ answer: result.response.text() });
+    const answer = await askAnalyst(body.question.trim(), clientId);
+    return NextResponse.json({ answer });
   } catch (err) {
     console.error('[analyst route]', err);
     return NextResponse.json(
