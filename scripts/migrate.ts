@@ -11,6 +11,7 @@ const sql = neon(process.env.DATABASE_URL ?? process.env.POSTGRES_URL!);
 const MIGRATIONS = [
   '0001_init.sql',
   '0002_chat.sql',
+  '0003_sessions.sql',
 ];
 
 async function migrate() {
@@ -19,7 +20,7 @@ async function migrate() {
     const statements = ddl.split(';').map(s => s.trim()).filter(Boolean);
     for (const stmt of statements) {
       // eslint-disable-next-line no-await-in-loop
-      await sql([stmt] as unknown as TemplateStringsArray);
+      await sql.query(stmt);
     }
     console.log(`✅ ${file}`);
   }

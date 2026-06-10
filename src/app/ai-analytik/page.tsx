@@ -3,6 +3,8 @@ import AiShell from '@/components/ai/AiShell';
 import { getClients, getKpiWithTrend, computeDateRange } from '@/lib/queries';
 import type { KpiRow } from '@/lib/queries';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'AI Marketingový analytik',
   description:

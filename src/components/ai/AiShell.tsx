@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { SendHorizonal } from 'lucide-react';
+import { SendHorizonal, Plus, Trash2 } from 'lucide-react';
 import MessageBubble, { type Message } from './MessageBubble';
-import type { ClientRow, KpiRow } from '@/lib/queries';
+import type { ClientRow, KpiRow, ChatSession } from '@/lib/queries';
 import { formatPercent } from '@/lib/utils';
 
 interface Props {
@@ -58,13 +58,6 @@ function getStatus(pno: number, targetPno: number) {
   };
 }
 
-function makeWelcome(clientName: string): Message {
-  return {
-    role: 'assistant',
-    content: `Dobrý den! Jsem váš AI marketingový analytik pro ${clientName}. Mohu vám pomoci analyzovat výkon, identifikovat problémy a navrhnout konkrétní kroky. Na co se chcete zeptat?`,
-  };
-}
-
 const QUICK_CHIPS = [
   {
     label: 'Proč klesají návštěvy?',
@@ -106,16 +99,20 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
   const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? clients[0];
   const kpi = clientStats[selectedClientId];
-  const status = kpi && selectedClient
-    ? getStatus(kpi.pno, selectedClient.target_pno)
-    : null;
+  const status = kpi && selectedClient ? getStatus(kpi.pno, selectedClient.target_pno) : null;
 
-  const [messages, setMessages] = useState<Message[]>([makeWelcome(selectedClient?.name ?? 'klienta')]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -133,30 +130,44 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
     return () => document.removeEventListener('mousedown', handleClick);
   }, [clientOpen]);
 
+  // Load sessions when client changes
   useEffect(() => {
     let cancelled = false;
-    setHistoryLoading(true);
-    fetch(`/api/chat?clientId=${selectedClientId}`)
+    setSessionsLoading(true);
+    setActiveSessionId(null);
+    setMessages([]);
+    fetch(`/api/chat/sessions?clientId=${selectedClientId}`)
+      .then((r) => r.json() as Promise<{ sessions?: ChatSession[] }>)
+      .then((data) => {
+        if (cancelled) return;
+        const list = data.sessions ?? [];
+        setSessions(list);
+        if (list.length > 0) setActiveSessionId(list[0].id);
+      })
+      .catch(() => { if (!cancelled) setSessions([]); })
+      .finally(() => { if (!cancelled) setSessionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load messages when active session changes
+  useEffect(() => {
+    if (!activeSessionId) {
+      setMessages([]);
+      setMessagesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setMessagesLoading(true);
+    fetch(`/api/chat?sessionId=${activeSessionId}`)
       .then((r) => r.json() as Promise<{ messages?: Array<{ role: string; content: string }> }>)
       .then((data) => {
         if (cancelled) return;
-        const history = data.messages ?? [];
-        if (history.length > 0) {
-          setMessages(history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })));
-        } else {
-          const client = clients.find((c) => c.id === selectedClientId);
-          setMessages([makeWelcome(client?.name ?? 'klienta')]);
-        }
+        setMessages((data.messages ?? []).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })));
       })
-      .catch(() => {
-        if (!cancelled) {
-          const client = clients.find((c) => c.id === selectedClientId);
-          setMessages([makeWelcome(client?.name ?? 'klienta')]);
-        }
-      })
-      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+      .catch(() => { if (!cancelled) setMessages([]); })
+      .finally(() => { if (!cancelled) setMessagesLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
 
   function switchClient(id: number) {
     if (id === selectedClientId) { setClientOpen(false); return; }
@@ -164,8 +175,42 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
     setClientOpen(false);
   }
 
+  function handleNewChat() {
+    setActiveSessionId(null);
+    setMessages([]);
+  }
+
+  async function handleDeleteSession(sessionId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    await fetch(`/api/chat/sessions/${sessionId}`, { method: 'DELETE' });
+    const remaining = sessions.filter((s) => s.id !== sessionId);
+    setSessions(remaining);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(remaining[0]?.id ?? null);
+    }
+  }
+
   async function sendMessage(question: string) {
     if (!question.trim() || loading) return;
+
+    const isFirst = messages.filter((m) => m.role === 'user').length === 0;
+    let sessionId = activeSessionId;
+
+    if (!sessionId) {
+      try {
+        const res = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: selectedClientId }),
+        });
+        const data = await res.json() as { session: ChatSession };
+        sessionId = data.session.id;
+        setActiveSessionId(sessionId);
+        setSessions((prev) => [data.session, ...prev]);
+      } catch {
+        return;
+      }
+    }
 
     setMessages((prev) => [...prev, { role: 'user', content: question.trim() }]);
     setInput('');
@@ -182,11 +227,23 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
       setMessages((prev) => [...prev, { role: 'assistant', content: answer }]);
 
       if (data.answer) {
+        const sid = sessionId;
         fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId: selectedClientId, userContent: question.trim(), assistantContent: answer }),
+          body: JSON.stringify({ sessionId: sid, clientId: selectedClientId, userContent: question.trim(), assistantContent: answer }),
         }).catch(() => {});
+
+        if (isFirst) {
+          const title = question.trim().slice(0, 45);
+          fetch(`/api/chat/sessions/${sid}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title }),
+          }).then(() => {
+            setSessions((prev) => prev.map((s) => s.id === sid ? { ...s, title } : s));
+          }).catch(() => {});
+        }
       }
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Omlouváme se, analytik momentálně není dostupný.' }]);
@@ -202,6 +259,7 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
 
   const initials = CLIENT_INITIALS[selectedClient?.domain ?? ''] ?? selectedClient?.name?.[0] ?? '?';
   const clientBg = CLIENT_COLORS[selectedClientId] ?? CLIENT_COLORS[1];
+  const showEmptyState = !messagesLoading && messages.length === 0;
 
   return (
     <div
@@ -278,7 +336,6 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
         <div className="rounded-(--radius-card) border border-clay-soft bg-white p-5.5 shadow-(--shadow-card)">
           <div className="mb-3.5 flex items-center justify-between">
             <h3 className="font-heading text-[15px] font-semibold text-espresso">Stav klienta</h3>
-            {/* Stoplight */}
             <div className="flex gap-1.5">
               <span
                 className="h-2.75 w-2.75 rounded-full"
@@ -317,11 +374,7 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">{status.desc}</p>
               <div className="mt-3.5 grid grid-cols-2 gap-2">
                 {[
-                  {
-                    label: 'PNO',
-                    value: formatPercent(kpi!.pno),
-                    color: kpi!.pno > selectedClient!.target_pno ? '#C0463B' : '#467045',
-                  },
+                  { label: 'PNO', value: formatPercent(kpi!.pno), color: kpi!.pno > selectedClient!.target_pno ? '#C0463B' : '#467045' },
                   { label: 'Návštěvy', value: formatVisits(kpi!.visits) },
                   { label: 'Konverze', value: String(Math.round(kpi!.conversions)) },
                   { label: 'Cíl PNO', value: formatPercent(selectedClient!.target_pno) },
@@ -340,25 +393,57 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
           )}
         </div>
 
-        {/* Quick chips */}
-        <div>
-          <p className="mb-2 ml-1 font-heading text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
-            Rychlé otázky
-          </p>
-          <div className="flex flex-col gap-2">
-            {QUICK_CHIPS.map(({ label, icon }) => (
-              <button
-                key={label}
-                disabled={loading}
-                onClick={() => sendMessage(label)}
-                className="flex items-center gap-2.5 rounded-[13px] border border-clay-soft bg-white px-3.75 py-3.25 text-left font-body text-[14px] font-medium text-espresso transition-colors hover:border-walnut hover:bg-terra-tint disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ lineHeight: 1.3 }}
-              >
-                <span className="shrink-0 text-walnut">{icon}</span>
-                {label}
-              </button>
-            ))}
+        {/* Chat sessions */}
+        <div className="flex flex-col gap-2 flex-1 min-h-0">
+          <div className="flex items-center justify-between ml-1">
+            <p className="font-heading text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chaty</p>
+            <button
+              onClick={handleNewChat}
+              title="Nový chat"
+              className="flex h-7 w-7 items-center justify-center rounded-[8px] text-ink-faint transition-colors hover:bg-bg-warm hover:text-espresso"
+            >
+              <Plus size={15} />
+            </button>
           </div>
+
+          {sessionsLoading ? (
+            <div className="flex flex-col gap-1.5 animate-pulse">
+              {[80, 65, 90].map((w, i) => (
+                <div key={i} className="h-9 rounded-[11px] bg-clay-soft/50" style={{ width: `${w}%` }} />
+              ))}
+            </div>
+          ) : sessions.length === 0 ? (
+            <p className="ml-1 text-[13px] text-ink-faint italic">Žádné předchozí chaty</p>
+          ) : (
+            <div className="flex flex-col gap-0.5 overflow-y-auto">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  onClick={() => {
+                    setActiveSessionId(session.id);
+                    setSidebarOpen(false);
+                  }}
+                  className={`group flex items-center gap-2 rounded-[11px] px-3.25 py-2.5 cursor-pointer transition-colors ${
+                    activeSessionId === session.id
+                      ? 'bg-clay-soft text-espresso'
+                      : 'text-ink-soft hover:bg-bg-warm hover:text-espresso'
+                  }`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="shrink-0 text-ink-faint">
+                    <path d="M2 2h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-2 2-2-2H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="flex-1 truncate font-body text-[13.5px]">{session.title}</span>
+                  <button
+                    onClick={(e) => handleDeleteSession(session.id, e)}
+                    title="Smazat chat"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-all hover:bg-red-100 hover:text-red-600"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -413,7 +498,7 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-1.5 py-5.5 flex flex-col gap-5.5">
-          {historyLoading ? (
+          {messagesLoading ? (
             <div className="flex flex-col gap-4 animate-pulse">
               {[120, 80, 140, 60].map((w, i) => (
                 <div key={i} className={`flex ${i % 2 === 1 ? 'justify-end' : ''}`}>
@@ -421,12 +506,46 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
                 </div>
               ))}
             </div>
+          ) : showEmptyState ? (
+            <div className="flex flex-col items-center justify-center h-full gap-8 py-10">
+              <div className="text-center">
+                <div
+                  className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+                  style={{ background: 'linear-gradient(150deg,#C2703D,#A85A2C)', boxShadow: '0 8px 20px rgba(194,112,61,.28)' }}
+                >
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 3v3M7 8h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="9.5" cy="13" r="1.3" fill="#fff"/>
+                    <circle cx="14.5" cy="13" r="1.3" fill="#fff"/>
+                  </svg>
+                </div>
+                <h3 className="font-heading text-[17px] font-semibold text-espresso">Dobrý den!</h3>
+                <p className="mt-1.5 text-[13.5px] text-ink-soft max-w-xs">
+                  Jsem váš AI analytik pro <strong>{selectedClient?.name}</strong>. Na co se chcete zeptat?
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 w-full max-w-md">
+                {QUICK_CHIPS.map(({ label, icon }) => (
+                  <button
+                    key={label}
+                    onClick={() => sendMessage(label)}
+                    disabled={loading}
+                    className="flex items-start gap-2.5 rounded-[14px] border border-clay-soft bg-white px-3.75 py-3.25 text-left font-body text-[13.5px] font-medium text-espresso transition-colors hover:border-walnut hover:bg-terra-tint disabled:opacity-40"
+                    style={{ lineHeight: 1.35 }}
+                  >
+                    <span className="shrink-0 mt-0.5 text-walnut">{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             messages.map((msg, i) => (
               <MessageBubble key={i} message={msg} />
             ))
           )}
-          {!historyLoading && loading && (
+
+          {!messagesLoading && loading && (
             <div className="flex gap-3">
               <div
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
@@ -453,9 +572,7 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
 
         {/* Composer */}
         <form onSubmit={handleSubmit} className="pt-3.5">
-          <div
-            className="flex items-end gap-2.5 rounded-[18px] border border-clay-soft bg-white px-4.5 py-2 shadow-(--shadow-card) focus-within:border-walnut transition-colors"
-          >
+          <div className="flex items-end gap-2.5 rounded-[18px] border border-clay-soft bg-white px-4.5 py-2 shadow-(--shadow-card) focus-within:border-walnut transition-colors">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}

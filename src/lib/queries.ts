@@ -224,35 +224,71 @@ export async function getClients(): Promise<ClientRow[]> {
   return rows as ClientRow[];
 }
 
+export type ChatSession = {
+  id: number;
+  client_id: number;
+  title: string;
+  created_at: string;
+};
+
 export type ChatMessage = {
   id: number;
+  session_id: number;
   client_id: number;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
 };
 
-export async function getChatHistory(clientId: number, limit = 100): Promise<ChatMessage[]> {
+export async function getClientSessions(clientId: number): Promise<ChatSession[]> {
   const { rows } = await sql`
-    SELECT id, client_id, role, content, created_at::text
-    FROM chat_messages
+    SELECT id, client_id, title, created_at::text
+    FROM chat_sessions
     WHERE client_id = ${clientId}
+    ORDER BY created_at DESC
+    LIMIT 50
+  `;
+  return rows as ChatSession[];
+}
+
+export async function createChatSession(clientId: number): Promise<ChatSession> {
+  const { rows } = await sql`
+    INSERT INTO chat_sessions (client_id)
+    VALUES (${clientId})
+    RETURNING id, client_id, title, created_at::text
+  `;
+  return rows[0] as ChatSession;
+}
+
+export async function deleteChatSession(sessionId: number): Promise<void> {
+  await sql`DELETE FROM chat_sessions WHERE id = ${sessionId}`;
+}
+
+export async function updateChatSessionTitle(sessionId: number, title: string): Promise<void> {
+  await sql`UPDATE chat_sessions SET title = ${title} WHERE id = ${sessionId}`;
+}
+
+export async function getSessionMessages(sessionId: number): Promise<ChatMessage[]> {
+  const { rows } = await sql`
+    SELECT id, session_id, client_id, role, content, created_at::text
+    FROM chat_messages
+    WHERE session_id = ${sessionId}
     ORDER BY created_at ASC
-    LIMIT ${limit}
   `;
   return rows as ChatMessage[];
 }
 
 export async function saveChatExchange(
+  sessionId: number,
   clientId: number,
   userContent: string,
   assistantContent: string
 ): Promise<void> {
   await sql`
-    INSERT INTO chat_messages (client_id, role, content)
+    INSERT INTO chat_messages (session_id, client_id, role, content)
     VALUES
-      (${clientId}, 'user',      ${userContent}),
-      (${clientId}, 'assistant', ${assistantContent})
+      (${sessionId}, ${clientId}, 'user',      ${userContent}),
+      (${sessionId}, ${clientId}, 'assistant', ${assistantContent})
   `;
 }
 
