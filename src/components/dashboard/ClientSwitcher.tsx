@@ -15,10 +15,10 @@ const CLIENT_INITIALS: Record<string, string> = {
   'alza.cz': 'a',
 };
 
-const CLIENT_COLORS: Record<number, { bg: string; shadow: string }> = {
-  1: { bg: 'linear-gradient(150deg,#6FA46B,#467045)', shadow: '0 4px 10px rgba(91,138,90,.35)' },
-  2: { bg: 'linear-gradient(150deg,#5B8BC4,#3A6BA0)', shadow: '0 4px 10px rgba(59,107,160,.35)' },
-  3: { bg: 'linear-gradient(150deg,#C2703D,#A85A2C)', shadow: '0 4px 10px rgba(194,112,61,.35)' },
+const CLIENT_COLORS: Record<number, { bg: string; shadow: string; ring: string }> = {
+  1: { bg: 'linear-gradient(150deg,#6FA46B,#467045)', shadow: '0 8px 24px rgba(71,112,69,.35)', ring: '#467045' },
+  2: { bg: 'linear-gradient(150deg,#5B8BC4,#3A6BA0)', shadow: '0 8px 24px rgba(59,107,160,.35)', ring: '#3A6BA0' },
+  3: { bg: 'linear-gradient(150deg,#C2703D,#A85A2C)', shadow: '0 8px 24px rgba(168,90,44,.35)', ring: '#A85A2C' },
 };
 
 function Spinner() {
@@ -65,7 +65,51 @@ export default function ClientSwitcher({ clients, currentId }: Props) {
   const colors = CLIENT_COLORS[currentId] ?? CLIENT_COLORS[1];
   const initials = CLIENT_INITIALS[current?.domain ?? ''] ?? current?.name?.[0] ?? '?';
 
+  const pendingClient = pendingId !== null ? clients.find((c) => c.id === pendingId) : null;
+  const pendingColors = pendingId !== null ? (CLIENT_COLORS[pendingId] ?? CLIENT_COLORS[1]) : null;
+  const pendingInitial = pendingClient
+    ? (CLIENT_INITIALS[pendingClient.domain] ?? pendingClient.name[0])
+    : '?';
+
   return (
+    <>
+    {/* Page-level loading overlay */}
+    {isPending && pendingColors && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: 'rgba(253,248,243,0.8)', backdropFilter: 'blur(4px)' }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative flex items-center justify-center">
+            {/* Spinning ring */}
+            <svg
+              className="animate-spin absolute"
+              width="80" height="80" viewBox="0 0 80 80" fill="none"
+            >
+              <circle cx="40" cy="40" r="37" stroke={pendingColors.ring} strokeOpacity="0.15" strokeWidth="2.5"/>
+              <path
+                d="M77 40A37 37 0 0 0 40 3"
+                stroke={pendingColors.ring}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+            </svg>
+            {/* Client avatar */}
+            <div
+              className="h-14 w-14 rounded-[16px] flex items-center justify-center font-heading text-[22px] font-bold text-white"
+              style={{ background: pendingColors.bg, boxShadow: pendingColors.shadow }}
+            >
+              {pendingInitial}
+            </div>
+          </div>
+          <p className="font-heading text-[15px] font-semibold text-espresso">
+            {pendingClient?.name ?? 'Načítám…'}
+          </p>
+          <p className="font-body text-[13px] text-ink-faint -mt-2">Načítám data projektu…</p>
+        </div>
+      </div>
+    )}
+
     <div className="relative" data-client-switcher>
       <button
         onClick={() => setOpen((v) => !v)}
@@ -125,5 +169,6 @@ export default function ClientSwitcher({ clients, currentId }: Props) {
         </div>
       )}
     </div>
+    </>
   );
 }
