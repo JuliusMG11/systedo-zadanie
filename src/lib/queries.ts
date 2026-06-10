@@ -57,8 +57,6 @@ export type AnalystContext = {
   trend_30d: TimeSeriesPoint[];
 };
 
-type Range = 7 | 30 | 90 | 365;
-
 function getDateRanges(days: number) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -79,6 +77,14 @@ function getDateRanges(days: number) {
     prevStart: fmt(prevStart),
     prevEnd: fmt(prevEnd),
   };
+}
+
+export function computeDateRange(days: number): { start: string; end: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = today.toISOString().slice(0, 10);
+  const start = new Date(today.getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
+  return { start, end };
 }
 
 function parseKpi(row: Record<string, string | null>): KpiRow {
@@ -109,12 +115,17 @@ async function fetchKpi(clientId: number, start: string, end: string): Promise<K
 
 export async function getKpiWithTrend(
   clientId: number,
-  days: Range
+  start: string,
+  end: string
 ): Promise<KpiWithTrend> {
-  const { start, end, prevStart, prevEnd } = getDateRanges(days);
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  const rangeDays = Math.round((endMs - startMs) / 86400000) + 1;
+  const prevEndDate = new Date(startMs - 86400000).toISOString().slice(0, 10);
+  const prevStartDate = new Date(startMs - rangeDays * 86400000).toISOString().slice(0, 10);
   const [current, previous] = await Promise.all([
     fetchKpi(clientId, start, end),
-    fetchKpi(clientId, prevStart, prevEnd),
+    fetchKpi(clientId, prevStartDate, prevEndDate),
   ]);
 
   const pct = (cur: number, prev: number) =>
@@ -135,9 +146,9 @@ export async function getKpiWithTrend(
 
 export async function getTimeSeries(
   clientId: number,
-  days: Range
+  start: string,
+  end: string
 ): Promise<TimeSeriesPoint[]> {
-  const { start, end } = getDateRanges(days);
   const { rows } = await sql`
     SELECT
       date::text,
@@ -167,9 +178,9 @@ export async function getTimeSeries(
 
 export async function getSourcesBreakdown(
   clientId: number,
-  days: Range
+  start: string,
+  end: string
 ): Promise<ChannelRow[]> {
-  const { start, end } = getDateRanges(days);
   const { rows } = await sql`
     SELECT
       channel,
@@ -205,18 +216,27 @@ export async function getClient(clientId: number): Promise<ClientRow> {
   return rows[0] as ClientRow;
 }
 
+export async function getClients(): Promise<ClientRow[]> {
+  const { rows } = await sql`
+    SELECT id, name, domain, target_pno::float AS target_pno
+    FROM clients ORDER BY id
+  `;
+  return rows as ClientRow[];
+}
+
 export async function getAnalystContext(clientId: number): Promise<AnalystContext> {
   const { start: s7, end: e7 } = getDateRanges(7);
+  const { start: s30, end: e30 } = getDateRanges(30);
   const { start: s90, end: e90 } = getDateRanges(90);
 
   const [client, last7, last30, last90, by_channel_30d, trend_30d_full] =
     await Promise.all([
       getClient(clientId),
       fetchKpi(clientId, s7, e7),
-      getKpiWithTrend(clientId, 30),
+      getKpiWithTrend(clientId, s30, e30),
       fetchKpi(clientId, s90, e90),
-      getSourcesBreakdown(clientId, 30),
-      getTimeSeries(clientId, 30),
+      getSourcesBreakdown(clientId, s30, e30),
+      getTimeSeries(clientId, s30, e30),
     ]);
 
   // Thin the 30-day series to every 3rd day to keep the snapshot compact

@@ -27,7 +27,7 @@ export default function PnoChart({ data, targetPno }: Props) {
       <p className="text-sm text-espresso/50 mb-4">
         Cíl: {targetPno} % — červená linie
       </p>
-      <div aria-label="Graf vývoje PNO" style={{ height: 220 }}>
+      <div aria-label="Graf vývoje PNO" style={{ height: 'clamp(160px, 26vw, 220px)', minWidth: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={formatted}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D6" />

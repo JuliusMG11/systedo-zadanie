@@ -7,7 +7,7 @@ export const article = {
   updatedAt: '2026-01-20',
   author: 'mionelo.cz',
   category: 'Zdravá výživa',
-  coverImage: '/images/oriesky-hero.jpg',
+  coverImage: '/images/nuts-seeds-mix.webp',
   coverAlt: 'Mísa smíšených ořechů a semínek na dřevěném podnosu',
   readingTime: '7 min',
   toc: [

@@ -1,18 +1,18 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
-import { Fraunces, Inter } from 'next/font/google';
+import { Space_Grotesk, Hanken_Grotesk } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/nav/Navbar';
 
-const fraunces = Fraunces({
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-fraunces',
+  variable: '--font-space-grotesk',
   display: 'swap',
 });
 
-const inter = Inter({
+const hankenGrotesk = Hanken_Grotesk({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-hanken-grotesk',
   display: 'swap',
 });
 
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="cs" className={`${fraunces.variable} ${inter.variable}`}>
+    <html lang="cs" className={`${spaceGrotesk.variable} ${hankenGrotesk.variable}`}>
       <body className="min-h-screen bg-cream text-espresso">
         <Navbar />
         <main>{children}</main>

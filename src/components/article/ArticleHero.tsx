@@ -5,33 +5,46 @@ interface Props {
 }
 
 export default function ArticleHero({ article }: Props) {
+  const formattedDate = new Date(article.publishedAt).toLocaleDateString('cs-CZ', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
   return (
-    <header className="mb-10">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-espresso/50">
-        <span className="rounded-pill bg-walnut/10 px-3 py-1 text-xs font-medium text-walnut">
+    <header className="pb-8">
+      {/* Meta row */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-4">
+        <span
+          className="inline-flex items-center rounded-pill px-3.25 py-1.5 font-heading text-[13px] font-medium border"
+          style={{ background: 'var(--color-terra-tint)', color: 'var(--color-terra-dk)', borderColor: '#e9d2bd' }}
+        >
           {article.category}
         </span>
-        <span>{article.readingTime} čtení</span>
-        <time dateTime={article.publishedAt}>
-          {new Date(article.publishedAt).toLocaleDateString('cs-CZ', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </time>
+        <span className="text-[14px] text-ink-faint">{formattedDate}</span>
+        <span className="text-[14px] text-ink-faint">· {article.readingTime} čtení</span>
       </div>
-      <h1 className="font-heading text-4xl font-semibold leading-tight text-espresso sm:text-5xl">
+
+      {/* Title */}
+      <h1 className="font-heading font-semibold text-espresso leading-[1.05] tracking-[-0.02em]"
+        style={{ fontSize: 'clamp(26px,5.2vw,50px)', maxWidth: 'min(20ch, 95vw)' }}>
         {article.title}
       </h1>
-      <p className="mt-4 text-lg text-espresso/60 leading-relaxed max-w-2xl">
+
+      {/* Lead */}
+      <p className="mt-4 text-ink-soft leading-[1.55]" style={{ fontSize: 'clamp(16px,2.2vw,21px)', maxWidth: 'min(60ch, 95vw)' }}>
         {article.excerpt}
       </p>
-      <div
-        className="mt-8 h-64 rounded-[var(--radius-card)] bg-clay-soft flex items-center justify-center text-espresso/30 text-sm"
-        role="img"
-        aria-label={article.coverAlt}
-      >
-        {article.coverAlt}
+
+      {/* Byline */}
+      <div className="mt-6 flex items-center gap-3 text-[14px] text-ink-soft">
+        <span
+          className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full font-heading text-[13px] font-bold text-white"
+          style={{ background: 'linear-gradient(150deg,#6FA46B,#467045)' }}
+        >
+          {article.author.slice(0, 2).toUpperCase()}
+        </span>
+        <span>Redakce <strong className="font-heading text-espresso">{article.author}</strong></span>
       </div>
     </header>
   );

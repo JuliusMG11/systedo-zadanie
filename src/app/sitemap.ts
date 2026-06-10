@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/dashboard`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/ai-analytik`, changeFrequency: 'monthly', priority: 0.7 },
     {
-      url: `${base}/clanek/${article.slug}`,
+      url: `${base}/article/${article.slug}`,
       changeFrequency: 'monthly',
       priority: 0.8,
       lastModified: new Date(article.updatedAt),

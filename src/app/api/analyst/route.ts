@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { question?: unknown };
+    const body = await req.json() as { question?: unknown; clientId?: unknown };
 
     if (typeof body.question !== 'string' || body.question.trim().length === 0) {
       return NextResponse.json({ error: 'Neplatný dotaz' }, { status: 400 });
@@ -19,10 +19,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Dotaz je příliš dlouhý (max 500 znaků)' }, { status: 400 });
     }
 
-    const snapshot = await getAnalystContext(1); // client_id = 1 (mionelo)
+    const clientId =
+      typeof body.clientId === 'number' && Number.isInteger(body.clientId) && body.clientId > 0
+        ? body.clientId
+        : 1;
+
+    const snapshot = await getAnalystContext(clientId);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
     });
 

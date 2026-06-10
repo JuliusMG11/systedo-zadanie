@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { config } from 'dotenv';
 import { sql } from '@vercel/postgres';
 
-// Load .env.local for local development (Vercel injects these in CI/production)
 config({ path: join(process.cwd(), '.env.local') });
 
 const CHANNELS = [
@@ -15,20 +14,68 @@ const CHANNELS = [
   ['referral', 0.04, 0.0,  0.018],
 ] as const;
 
-const DAYS = 90;
-const AOV = 720;
-
 function rnd(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
-async function seed() {
-  await sql`DELETE FROM metrics_daily`;
-  await sql`DELETE FROM clients`;
+interface ClientProfile {
+  name: string;
+  domain: string;
+  target_pno: number;
+  days: number;
+  baseVisits: number;
+  aov: number;
+  // story: 'decline' | 'growth' | 'stable'
+  story: 'decline' | 'growth' | 'stable';
+}
 
+const CLIENTS: ClientProfile[] = [
+  {
+    name: 'mionelo.cz',
+    domain: 'mionelo.cz',
+    target_pno: 25,
+    days: 90,
+    baseVisits: 1400,
+    aov: 720,
+    story: 'decline',
+  },
+  {
+    name: 'getryze.app',
+    domain: 'getryze.app',
+    target_pno: 20,
+    days: 180,
+    baseVisits: 3800,
+    aov: 290,
+    story: 'growth',
+  },
+  {
+    name: 'gostreak.app',
+    domain: 'gostreak.app',
+    target_pno: 30,
+    days: 365,
+    baseVisits: 950,
+    aov: 149,
+    story: 'stable',
+  },
+];
+
+function storyMultiplier(story: ClientProfile['story'], t: number): number {
+  if (story === 'decline') {
+    // visits drop ~30% in last third
+    return t > 0.66 ? 1 - (t - 0.66) * 0.9 : 1;
+  }
+  if (story === 'growth') {
+    // visits grow steadily +80% over full period
+    return 0.6 + t * 0.8;
+  }
+  // stable: slight seasonality only
+  return 0.92 + Math.sin(t * Math.PI * 4) * 0.08;
+}
+
+async function seedClient(profile: ClientProfile): Promise<number> {
   const { rows } = await sql`
     INSERT INTO clients (name, domain, target_pno)
-    VALUES ('mionelo.cz', 'mionelo.cz', 25.00)
+    VALUES (${profile.name}, ${profile.domain}, ${profile.target_pno})
     RETURNING id
   `;
   const clientId = rows[0].id as number;
@@ -36,21 +83,23 @@ async function seed() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  for (let d = DAYS - 1; d >= 0; d--) {
+  const cpcInflationRate = profile.story === 'growth' ? 0.3 : 0.45;
+
+  for (let d = profile.days - 1; d >= 0; d--) {
     const date = new Date(today);
     date.setDate(today.getDate() - d);
     const iso = date.toISOString().slice(0, 10);
 
-    const t = (DAYS - 1 - d) / (DAYS - 1); // 0 → 1 over time
-    const decline = t > 0.66 ? 1 - (t - 0.66) * 0.9 : 1;
-    const cpcInflation = 1 + t * 0.45;
+    const t = (profile.days - 1 - d) / (profile.days - 1);
+    const trend = storyMultiplier(profile.story, t);
+    const cpcInflation = 1 + t * cpcInflationRate;
     const weekend = [0, 6].includes(date.getDay()) ? 0.82 : 1;
-    const baseVisits = 1400 * decline * weekend * rnd(0.92, 1.08);
+    const baseVisits = profile.baseVisits * trend * weekend * rnd(0.92, 1.08);
 
     for (const [channel, share, cpc, cr] of CHANNELS) {
       const visits = Math.round(baseVisits * share);
       const conversions = Math.max(0, Math.round(visits * cr * rnd(0.85, 1.15)));
-      const conversion_value = parseFloat((conversions * AOV * rnd(0.9, 1.1)).toFixed(2));
+      const conversion_value = parseFloat((conversions * profile.aov * rnd(0.9, 1.1)).toFixed(2));
       const cost = parseFloat((visits * cpc * cpcInflation * rnd(0.9, 1.1)).toFixed(2));
 
       await sql`
@@ -66,7 +115,15 @@ async function seed() {
     }
   }
 
-  console.log(`✅ Seed: client ${clientId}, ${DAYS} days × ${CHANNELS.length} channels`);
+  console.log(`✅ Seed: client ${clientId} (${profile.name}), ${profile.days} days × ${CHANNELS.length} channels`);
+  return clientId;
+}
+
+async function seed() {
+  await sql`TRUNCATE clients RESTART IDENTITY CASCADE`;
+  for (const profile of CLIENTS) {
+    await seedClient(profile);
+  }
 }
 
 seed().catch((e) => {

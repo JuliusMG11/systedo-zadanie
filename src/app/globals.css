@@ -2,26 +2,41 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
+  /* palette — matches design system */
   --color-cream: #FAF6EF;
+  --color-bg-warm: #F3ECDF;
   --color-espresso: #2E241D;
+  --color-ink-soft: #6B5E52;
+  --color-ink-faint: #9C8F81;
+  --color-clay-soft: #E7DECF;
+  --color-line: #E7DECF;
+  --color-card: #FFFFFF;
+
   --color-walnut: #C2703D;
+  --color-terra-dk: #A85A2C;
+  --color-terra-tint: #F6E7DB;
   --color-leaf: #5B8A5A;
-  --color-clay-soft: #F0E4D6;
-  --color-positive: #3F8F5E;
-  --color-negative: #C0413B;
-  --color-warning: #D98A3D;
+  --color-green-dk: #467045;
+  --color-green-tint: #E4EEE2;
+  --color-positive: #467045;
+  --color-negative: #C0463B;
+  --color-red-tint: #F6E0DD;
+  --color-warning: #D99026;
+  --color-amber: #D99026;
 
-  /* Typography */
-  --font-heading: var(--font-fraunces), Georgia, serif;
-  --font-body: var(--font-inter), system-ui, sans-serif;
+  /* typography */
+  --font-heading: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-body: var(--font-hanken-grotesk), system-ui, sans-serif;
 
-  /* Radius */
+  /* radius */
   --radius-card: 16px;
+  --radius-lg: 22px;
+  --radius-sm: 10px;
   --radius-pill: 9999px;
 
-  /* Shadows */
-  --shadow-card: 0 1px 3px rgba(46, 36, 29, 0.08); /* espresso at 8% opacity */
+  /* shadows */
+  --shadow-card: 0 1px 2px rgba(46,36,29,.04), 0 8px 24px rgba(46,36,29,.06);
+  --shadow-lg: 0 2px 6px rgba(46,36,29,.05), 0 18px 48px rgba(46,36,29,.10);
 }
 
 body {
@@ -30,6 +45,16 @@ body {
   font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0;
 }
 
 .font-tabular {

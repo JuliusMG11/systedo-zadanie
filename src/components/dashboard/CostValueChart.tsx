@@ -19,11 +19,11 @@ export default function CostValueChart({ data }: Props) {
   }));
 
   return (
-    <div className="rounded-[var(--radius-card)] bg-white p-6 shadow-[var(--shadow-card)]">
-      <h2 className="font-heading text-lg font-semibold text-espresso mb-4">
+    <div className="rounded-(--radius-card) bg-white p-5 sm:p-6 shadow-(--shadow-card) flex flex-col">
+      <h2 className="font-heading text-lg font-semibold text-espresso mb-4 shrink-0">
         Náklady vs. Hodnota konverze
       </h2>
-      <div aria-label="Graf nákladů a hodnoty konverze" style={{ height: 260 }}>
+      <div aria-label="Graf nákladů a hodnoty konverze" className="flex-1" style={{ minHeight: 'clamp(180px, 28vw, 260px)', minWidth: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={formatted} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D6" />
