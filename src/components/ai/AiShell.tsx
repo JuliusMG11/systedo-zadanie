@@ -111,6 +111,7 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
     : null;
 
   const [messages, setMessages] = useState<Message[]>([makeWelcome(selectedClient?.name ?? 'klienta')]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -132,11 +133,34 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
     return () => document.removeEventListener('mousedown', handleClick);
   }, [clientOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setHistoryLoading(true);
+    fetch(`/api/chat?clientId=${selectedClientId}`)
+      .then((r) => r.json() as Promise<{ messages?: Array<{ role: string; content: string }> }>)
+      .then((data) => {
+        if (cancelled) return;
+        const history = data.messages ?? [];
+        if (history.length > 0) {
+          setMessages(history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })));
+        } else {
+          const client = clients.find((c) => c.id === selectedClientId);
+          setMessages([makeWelcome(client?.name ?? 'klienta')]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          const client = clients.find((c) => c.id === selectedClientId);
+          setMessages([makeWelcome(client?.name ?? 'klienta')]);
+        }
+      })
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function switchClient(id: number) {
     if (id === selectedClientId) { setClientOpen(false); return; }
-    const client = clients.find((c) => c.id === id);
     setSelectedClientId(id);
-    setMessages([makeWelcome(client?.name ?? 'klienta')]);
     setClientOpen(false);
   }
 
@@ -154,8 +178,16 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
         body: JSON.stringify({ question: question.trim(), clientId: selectedClientId }),
       });
       const data = await res.json() as { answer?: string; error?: string };
-      const content = data.answer ?? data.error ?? 'Omlouváme se, nastala chyba.';
-      setMessages((prev) => [...prev, { role: 'assistant', content }]);
+      const answer = data.answer ?? data.error ?? 'Omlouváme se, nastala chyba.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: answer }]);
+
+      if (data.answer) {
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: selectedClientId, userContent: question.trim(), assistantContent: answer }),
+        }).catch(() => {});
+      }
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Omlouváme se, analytik momentálně není dostupný.' }]);
     } finally {
@@ -381,11 +413,20 @@ export default function AiShell({ clients, defaultClientId, clientStats }: Props
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-1.5 py-5.5 flex flex-col gap-5.5">
-          {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} />
-          ))}
-
-          {loading && (
+          {historyLoading ? (
+            <div className="flex flex-col gap-4 animate-pulse">
+              {[120, 80, 140, 60].map((w, i) => (
+                <div key={i} className={`flex ${i % 2 === 1 ? 'justify-end' : ''}`}>
+                  <div className="h-10 rounded-2xl bg-clay-soft" style={{ width: `${w}px` }} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            messages.map((msg, i) => (
+              <MessageBubble key={i} message={msg} />
+            ))
+          )}
+          {!historyLoading && loading && (
             <div className="flex gap-3">
               <div
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"

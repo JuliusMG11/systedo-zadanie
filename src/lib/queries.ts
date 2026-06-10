@@ -224,6 +224,38 @@ export async function getClients(): Promise<ClientRow[]> {
   return rows as ClientRow[];
 }
 
+export type ChatMessage = {
+  id: number;
+  client_id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+};
+
+export async function getChatHistory(clientId: number, limit = 100): Promise<ChatMessage[]> {
+  const { rows } = await sql`
+    SELECT id, client_id, role, content, created_at::text
+    FROM chat_messages
+    WHERE client_id = ${clientId}
+    ORDER BY created_at ASC
+    LIMIT ${limit}
+  `;
+  return rows as ChatMessage[];
+}
+
+export async function saveChatExchange(
+  clientId: number,
+  userContent: string,
+  assistantContent: string
+): Promise<void> {
+  await sql`
+    INSERT INTO chat_messages (client_id, role, content)
+    VALUES
+      (${clientId}, 'user',      ${userContent}),
+      (${clientId}, 'assistant', ${assistantContent})
+  `;
+}
+
 export async function getAnalystContext(clientId: number): Promise<AnalystContext> {
   const { start: s7, end: e7 } = getDateRanges(7);
   const { start: s30, end: e30 } = getDateRanges(30);

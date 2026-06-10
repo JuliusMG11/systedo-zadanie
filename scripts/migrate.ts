@@ -2,15 +2,28 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from 'dotenv';
-import { sql } from '@vercel/postgres';
+import { neon } from '@neondatabase/serverless';
 
-// Load .env.local for local development (Vercel injects these in CI/production)
 config({ path: join(process.cwd(), '.env.local') });
 
+const sql = neon(process.env.DATABASE_URL ?? process.env.POSTGRES_URL!);
+
+const MIGRATIONS = [
+  '0001_init.sql',
+  '0002_chat.sql',
+];
+
 async function migrate() {
-  const ddl = readFileSync(join(process.cwd(), 'migrations/0001_init.sql'), 'utf8');
-  await sql.query(ddl);
-  console.log('✅ Migrace dokončena');
+  for (const file of MIGRATIONS) {
+    const ddl = readFileSync(join(process.cwd(), 'migrations', file), 'utf8');
+    const statements = ddl.split(';').map(s => s.trim()).filter(Boolean);
+    for (const stmt of statements) {
+      // eslint-disable-next-line no-await-in-loop
+      await sql([stmt] as unknown as TemplateStringsArray);
+    }
+    console.log(`✅ ${file}`);
+  }
+  console.log('Migration complete');
 }
 
 migrate().catch((e) => {
