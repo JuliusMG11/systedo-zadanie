@@ -32,8 +32,8 @@ interface ClientProfile {
 
 const CLIENTS: ClientProfile[] = [
   { name: 'mionelo.cz',   domain: 'mionelo.cz',   target_pno: 25, days: 90,  baseVisits: 1400, aov: 720, story: 'decline' },
-  { name: 'getryze.app',  domain: 'getryze.app',  target_pno: 20, days: 180, baseVisits: 3800, aov: 290, story: 'growth'  },
-  { name: 'gostreak.app', domain: 'gostreak.app', target_pno: 30, days: 365, baseVisits: 950,  aov: 149, story: 'stable'  },
+  { name: 'Rohlik.cz',    domain: 'rohlik.cz',    target_pno: 20, days: 180, baseVisits: 3800, aov: 290, story: 'growth'  },
+  { name: 'Alza.cz',      domain: 'alza.cz',      target_pno: 30, days: 365, baseVisits: 950,  aov: 149, story: 'stable'  },
 ];
 
 function storyMultiplier(story: ClientProfile['story'], t: number): number {

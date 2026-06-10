@@ -20,8 +20,8 @@ const CLIENT_COLORS: Record<number, string> = {
 
 const CLIENT_INITIALS: Record<string, string> = {
   'mionelo.cz': 'm',
-  'getryze.app': 'r',
-  'gostreak.app': 's',
+  'rohlik.cz': 'r',
+  'alza.cz': 'a',
 };
 
 function formatVisits(n: number): string {
