@@ -1,6 +1,7 @@
 // src/app/dashboard/page.tsx
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import { unstable_cache } from 'next/cache';
 import {
   getKpiWithTrend,
   getTimeSeries,
@@ -33,7 +34,7 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENT_COLORS: Record<number, { bg: string; shadow: string; initial: string }> = {
   1: { bg: 'linear-gradient(150deg,#6FA46B,#467045)', shadow: '0 6px 16px rgba(91,138,90,.32)', initial: 'm' },
   2: { bg: 'linear-gradient(150deg,#5B8BC4,#3A6BA0)', shadow: '0 6px 16px rgba(59,107,160,.32)', initial: 'r' },
-  3: { bg: 'linear-gradient(150deg,#C2703D,#A85A2C)', shadow: '0 6px 16px rgba(194,112,61,.32)', initial: 's' },
+  3: { bg: 'linear-gradient(150deg,#C2703D,#A85A2C)', shadow: '0 6px 16px rgba(194,112,61,.32)', initial: 'a' },
 };
 
 function AiInsightSkeleton() {
@@ -58,10 +59,17 @@ async function AiInsightLoader({ clientId }: { clientId: number }) {
   return <AiInsightCard insight={insight} />;
 }
 
+const getCachedInsight = unstable_cache(
+  (clientId: number) => import('@/lib/ai/analyst').then(m =>
+    m.askAnalyst('Shrň hlavní marketingový problém klienta jednou větou.', clientId)
+  ),
+  ['ai-insight'],
+  { revalidate: 3600 }
+);
+
 async function getAiInsight(clientId: number): Promise<string> {
   try {
-    const { askAnalyst } = await import('@/lib/ai/analyst');
-    return await askAnalyst('Shrň hlavní marketingový problém klienta jednou větou.', clientId);
+    return await getCachedInsight(clientId);
   } catch {
     return 'Analytik momentálně není dostupný.';
   }
